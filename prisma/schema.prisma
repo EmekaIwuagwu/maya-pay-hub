@@ -1,0 +1,1163 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= ENUMS =============
+
+enum KYCStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum KYCTier {
+  BASIC
+  VERIFIED
+  BUSINESS
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  COMPLETED
+  FAILED
+  CANCELLED
+  IN_ESCROW
+  WAITING_CLAIM
+  FLAGGED
+  UNDER_REVIEW
+}
+
+enum TransactionType {
+  SEND
+  RECEIVE
+  ESCROW_CREATE
+  ESCROW_RELEASE
+  WITHDRAWAL
+  DEPOSIT
+  EMAIL_PAYMENT
+  EMAIL_CLAIM
+  REFUND
+  ADJUSTMENT
+}
+
+enum EscrowStatus {
+  ACTIVE
+  RELEASED
+  DISPUTED
+  CANCELLED
+  EXPIRED
+  WAITING_REGISTRATION
+  UNDER_REVIEW
+}
+
+enum EscrowType {
+  MANUAL
+  EMAIL_BASED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  FLAGGED
+  UNDER_REVIEW
+}
+
+enum CardType {
+  VIRTUAL_MULTI
+  VIRTUAL_SINGLE
+  PHYSICAL
+}
+
+enum CardStatus {
+  ACTIVE
+  FROZEN
+  CANCELLED
+  EXPIRED
+}
+
+enum EmailPaymentStatus {
+  PENDING
+  DELIVERED
+  OPENED
+  CLICKED
+  REGISTERED
+  CLAIMED
+  EXPIRED
+  REFUNDED
+  CANCELLED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+  COMPLIANCE
+  FINANCE
+  ANALYST
+}
+
+enum AdminPermission {
+  VIEW_USERS
+  EDIT_USERS
+  SUSPEND_USERS
+  DELETE_USERS
+  VIEW_TRANSACTIONS
+  EDIT_TRANSACTIONS
+  REFUND_TRANSACTIONS
+  VIEW_KYC
+  APPROVE_KYC
+  REJECT_KYC
+  VIEW_DISPUTES
+  RESOLVE_DISPUTES
+  VIEW_SETTINGS
+  EDIT_SETTINGS
+  VIEW_REPORTS
+  GENERATE_REPORTS
+  VIEW_AUDIT_LOGS
+  MANAGE_ADMINS
+  VIEW_FRAUD_ALERTS
+  MANAGE_FRAUD_RULES
+  VIEW_WITHDRAWALS
+  APPROVE_WITHDRAWALS
+  VIEW_EMAIL_PAYMENTS
+  MANAGE_EMAIL_PAYMENTS
+  SYSTEM_MAINTENANCE
+}
+
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_SUSPENDED
+  USER_DELETED
+  TRANSACTION_VIEWED
+  TRANSACTION_REFUNDED
+  TRANSACTION_FLAGGED
+  KYC_APPROVED
+  KYC_REJECTED
+  DISPUTE_CREATED
+  DISPUTE_RESOLVED
+  SETTINGS_CHANGED
+  ADMIN_LOGIN
+  ADMIN_LOGOUT
+  REPORT_GENERATED
+  WITHDRAWAL_APPROVED
+  WITHDRAWAL_REJECTED
+  EMAIL_PAYMENT_CANCELLED
+  FRAUD_RULE_ADDED
+  FRAUD_RULE_REMOVED
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_PROGRESS
+  AWAITING_USER
+  AWAITING_SENDER
+  RESOLVED
+  CLOSED
+  ESCALATED
+}
+
+enum DisputeType {
+  PAYMENT_NOT_RECEIVED
+  UNAUTHORIZED_TRANSACTION
+  WRONG_AMOUNT
+  DUPLICATE_PAYMENT
+  SERVICE_NOT_DELIVERED
+  ACCOUNT_ISSUE
+  OTHER
+}
+
+enum FlagReason {
+  SUSPICIOUS_PATTERN
+  HIGH_VALUE
+  RAPID_TRANSACTIONS
+  NEW_USER_HIGH_AMOUNT
+  BLACKLISTED_EMAIL
+  BLACKLISTED_ADDRESS
+  MANUAL_FLAG
+  FRAUD_ALGORITHM
+}
+
+enum Web3AuthProvider {
+  GOOGLE
+  FACEBOOK
+  TWITTER
+  APPLE
+  EMAIL_PASSWORDLESS
+  SMS
+  DISCORD
+  TWITCH
+}
+
+enum SmartAccountType {
+  WEB3AUTH_EMBEDDED
+  EXTERNAL_IMPORTED
+}
+
+// ============= MODELS =============
+
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  emailVerified     Boolean     @default(false)
+  fullName          String?
+  phoneNumber       String?
+  phoneVerified     Boolean     @default(false)
+  countryCode       String?
+  dateOfBirth       DateTime?
+  address           String?
+  city              String?
+  state             String?
+  postalCode        String?
+  country           String?
+
+  // Web3Auth Integration
+  web3AuthId        String?     @unique
+  web3AuthProvider  Web3AuthProvider?
+  web3AuthVerifierId String?    @unique
+
+  // Registration source tracking
+  registrationSource String?    @default("direct")
+  claimedPaymentId   String?
+
+  // KYC
+  kycStatus         KYCStatus   @default(UNVERIFIED)
+  kycTier           KYCTier     @default(BASIC)
+  kycSubmittedAt    DateTime?
+  kycVerifiedAt     DateTime?
+  kycRejectedAt     DateTime?
+  kycRejectionReason String?
+  kycDocuments      Json?
+
+  // Limits
+  dailyLimit        Decimal     @default(1000.00) @db.Decimal(19, 2)
+  monthlyLimit      Decimal     @default(10000.00) @db.Decimal(19, 2)
+  singleTxLimit     Decimal     @default(5000.00) @db.Decimal(19, 2)
+
+  // Security
+  twoFactorEnabled  Boolean     @default(false)
+  twoFactorSecret   String?
+
+  // Preferences
+  currency          String      @default("USD")
+  language          String      @default("en")
+  timezone          String      @default("UTC")
+
+  // Email notification preferences
+  notifyOnReceive   Boolean     @default(true)
+  notifyOnSend      Boolean     @default(true)
+  notifyOnClaim     Boolean     @default(true)
+
+  // Admin flags
+  isSuspended       Boolean     @default(false)
+  suspendedAt       DateTime?
+  suspensionReason  String?
+  suspendedBy       String?
+  isFlagged         Boolean     @default(false)
+  flaggedReason     String?
+  riskScore         Int?        @default(0)
+
+  // Metadata
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  isActive          Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  smartAccounts     SmartAccount[]
+  sessions          Session[]
+  web3AuthSessions  Web3AuthSession[]
+  transactions      Transaction[] @relation("UserTransactions")
+  sentTransactions  Transaction[] @relation("SentTransactions")
+  receivedTransactions Transaction[] @relation("ReceivedTransactions")
+  escrowsCreated    Escrow[]     @relation("EscrowCreator")
+  escrowsReceived   Escrow[]     @relation("EscrowRecipient")
+  emailPaymentsSent EmailPayment[] @relation("EmailPaymentSender")
+  emailPaymentsReceived EmailPayment[] @relation("EmailPaymentRecipient")
+  bankAccounts      BankAccount[]
+  cards             Card[]
+  recipients        Recipient[]
+  withdrawals       Withdrawal[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+  disputes          Dispute[]
+  adminNotes        AdminUserNote[]
+
+  @@index([email])
+  @@index([web3AuthId])
+  @@index([web3AuthVerifierId])
+  @@index([kycStatus])
+  @@index([registrationSource])
+  @@index([isSuspended])
+  @@index([isFlagged])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model SmartAccount {
+  id                String            @id @default(uuid())
+  userId            String
+
+  // Smart Account Details
+  accountAddress    String            @unique
+  accountType       SmartAccountType  @default(WEB3AUTH_EMBEDDED)
+
+  // Web3Auth Integration
+  web3AuthPublicKey String?
+
+  // Account Abstraction (ERC-4337)
+  factoryAddress    String?
+  entryPointAddress String?
+
+  // Paymaster Integration
+  paymasterEnabled  Boolean           @default(true)
+  paymasterAddress  String?
+  sponsoredGasLimit Decimal?          @db.Decimal(19, 2)
+
+  // Balances
+  balanceUSDC       Decimal           @default(0) @db.Decimal(19, 6)
+  balanceInEscrow   Decimal           @default(0) @db.Decimal(19, 6)
+  balanceETH        Decimal           @default(0) @db.Decimal(19, 6)
+
+  // Account Status
+  isDeployed        Boolean           @default(false)
+  deploymentTxHash  String?
+  deployedAt        DateTime?
+
+  isPrimary         Boolean           @default(true)
+  isActive          Boolean           @default(true)
+
+  // Network
+  network           String            @default("base")
+  chainId           Int               @default(8453)
+
+  // Metadata
+  nonce             BigInt            @default(0)
+  lastUsedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userOperations    UserOperation[]
+
+  @@index([userId])
+  @@index([accountAddress])
+  @@index([web3AuthPublicKey])
+  @@index([isDeployed])
+  @@map("smart_accounts")
+}
+
+model UserOperation {
+  id                String        @id @default(uuid())
+  smartAccountId    String
+
+  // UserOp Details
+  userOpHash        String        @unique
+  sender            String
+  nonce             BigInt
+  initCode          String?       @db.Text
+  callData          String        @db.Text
+
+  // Gas Configuration
+  callGasLimit      BigInt
+  verificationGasLimit BigInt
+  preVerificationGas BigInt
+  maxFeePerGas      BigInt
+  maxPriorityFeePerGas BigInt
+
+  // Paymaster Details
+  paymasterAndData  String?       @db.Text
+  paymasterUsed     Boolean       @default(false)
+  gasPaidInUSDC     Decimal?      @db.Decimal(19, 6)
+  gasPaidInETH      Decimal?      @db.Decimal(19, 6)
+
+  // Execution
+  signature         String        @db.Text
+  transactionHash   String?
+  blockNumber       BigInt?
+  blockHash         String?
+
+  // Status
+  status            String        @default("pending")
+  failureReason     String?
+
+  // Timestamps
+  createdAt         DateTime      @default(now())
+  submittedAt       DateTime?
+  confirmedAt       DateTime?
+
+  // Relations
+  smartAccount      SmartAccount  @relation(fields: [smartAccountId], references: [id], onDelete: Cascade)
+  transaction       Transaction?
+
+  @@index([smartAccountId])
+  @@index([userOpHash])
+  @@index([transactionHash])
+  @@index([status])
+  @@index([createdAt])
+  @@map("user_operations")
+}
+
+model Web3AuthSession {
+  id                String    @id @default(uuid())
+  userId            String
+
+  // Web3Auth Session Details
+  sessionId         String    @unique
+  idToken           String    @db.Text
+  accessToken       String?   @db.Text
+
+  // Session Metadata
+  provider          Web3AuthProvider
+  verifierId        String
+  publicKey         String
+
+  // Device & Location
+  ipAddress         String?
+  userAgent         String?
+  device            String?
+  location          String?
+
+  // Session Control
+  expiresAt         DateTime
+  lastActivityAt    DateTime  @default(now())
+  isActive          Boolean   @default(true)
+
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("web3auth_sessions")
+}
+
+model Transaction {
+  id                    String            @id @default(uuid())
+  userId                String
+  senderId              String?
+  recipientId           String?
+  recipientEmail        String?
+  recipientWalletAddress String?
+
+  amount                Decimal           @db.Decimal(19, 6)
+  amountUSDC            Decimal           @db.Decimal(19, 6)
+  fee                   Decimal           @default(0) @db.Decimal(19, 6)
+
+  // Gas Details
+  gasFee                Decimal           @default(0) @db.Decimal(19, 6)
+  gasPaidInUSDC         Boolean           @default(true)
+  gasEstimate           BigInt?
+  actualGasUsed         BigInt?
+  paymasterUsed         Boolean           @default(false)
+  paymasterAddress      String?
+
+  totalAmount           Decimal           @db.Decimal(19, 6)
+
+  // Blockchain Details
+  transactionHash       String?           @unique
+  userOpHash            String?           @unique
+  userOperationId       String?           @unique
+  blockNumber           BigInt?
+  status                TransactionStatus @default(PENDING)
+  transactionType       TransactionType
+
+  referenceNote         String?
+  invoiceUrl            String?
+
+  deliverySpeed         String?           @default("standard")
+  estimatedArrival      DateTime?
+
+  // Email payment specific
+  isEmailPayment        Boolean           @default(false)
+  emailPaymentId        String?           @unique
+
+  // Escrow
+  useEscrow             Boolean           @default(false)
+  escrowId              String?           @unique
+
+  // Admin flags
+  isFlagged             Boolean           @default(false)
+  flaggedReason         String?
+  flaggedBy             String?
+  flaggedAt             DateTime?
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  reviewNotes           String?
+
+  // Metadata
+  failureReason         String?
+  retryCount            Int               @default(0)
+  metadata              Json?
+  ipAddress             String?
+  userAgent             String?
+
+  createdAt             DateTime          @default(now())
+  completedAt           DateTime?
+  updatedAt             DateTime          @updatedAt
+
+  // Relations
+  user                  User              @relation("UserTransactions", fields: [userId], references: [id], onDelete: Cascade)
+  sender                User?             @relation("SentTransactions", fields: [senderId], references: [id])
+  recipient             User?             @relation("ReceivedTransactions", fields: [recipientId], references: [id])
+  escrow                Escrow?           @relation(fields: [escrowId], references: [id])
+  emailPayment          EmailPayment?     @relation(fields: [emailPaymentId], references: [id])
+  userOperation         UserOperation?    @relation(fields: [userOperationId], references: [id])
+  dispute               Dispute?
+
+  @@index([userId])
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([recipientEmail])
+  @@index([transactionHash])
+  @@index([userOpHash])
+  @@index([status])
+  @@index([isEmailPayment])
+  @@index([isFlagged])
+  @@index([paymasterUsed])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model GasSponsorship {
+  id                String    @id @default(uuid())
+
+  // Sponsorship Details
+  userId            String?
+  transactionId     String?
+  campaignId        String?
+
+  // Gas Details
+  gasAmountUSDC     Decimal   @db.Decimal(19, 6)
+  gasAmountETH      Decimal   @db.Decimal(19, 6)
+  paymasterAddress  String
+
+  // Transaction Reference
+  userOpHash        String
+  transactionHash   String?
+
+  // Sponsorship Reason
+  reason            String
+  campaignName      String?
+
+  createdAt         DateTime  @default(now())
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([userOpHash])
+  @@index([createdAt])
+  @@map("gas_sponsorships")
+}
+
+model PaymasterMetrics {
+  id                String    @id @default(uuid())
+
+  // Time Period
+  date              DateTime  @db.Date
+  hour              Int?
+
+  // Usage Metrics
+  totalOperations   Int       @default(0)
+  successfulOps     Int       @default(0)
+  failedOps         Int       @default(0)
+
+  // Cost Metrics
+  totalGasUSDC      Decimal   @default(0) @db.Decimal(19, 6)
+  totalGasETH       Decimal   @default(0) @db.Decimal(19, 6)
+  averageGasPerOp   Decimal   @default(0) @db.Decimal(19, 6)
+
+  // Sponsorship Metrics
+  sponsoredOps      Int       @default(0)
+  sponsoredGasUSDC  Decimal   @default(0) @db.Decimal(19, 6)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([date, hour])
+  @@index([date])
+  @@map("paymaster_metrics")
+}
+
+model EmailPayment {
+  id                    String              @id @default(uuid())
+  senderId              String
+  senderEmail           String
+  recipientEmail        String
+  recipientId           String?
+
+  amount                Decimal             @db.Decimal(19, 6)
+  currency              String              @default("USDC")
+
+  status                EmailPaymentStatus  @default(PENDING)
+
+  // Tracking
+  emailSentAt           DateTime?
+  emailOpenedAt         DateTime?
+  emailClickedAt        DateTime?
+  recipientRegisteredAt DateTime?
+  claimedAt             DateTime?
+  expiredAt             DateTime?
+  refundedAt            DateTime?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancellationReason    String?
+
+  // Claim period
+  expiresAt             DateTime
+
+  // Escrow details
+  escrowSmartAccountId  String?
+  escrowTxHash          String?
+  claimTxHash           String?
+  refundTxHash          String?
+
+  // UserOp tracking
+  escrowUserOpHash      String?
+  claimUserOpHash       String?
+  refundUserOpHash      String?
+
+  // Email tracking
+  emailTrackingId       String              @unique
+  emailProvider         String?             @default("sendgrid")
+  emailMessageId        String?
+
+  // Notification history
+  remindersSent         Int                 @default(0)
+  lastReminderAt        DateTime?
+
+  // Payment details
+  referenceNote         String?
+  personalMessage       String?
+
+  // Admin flags
+  isFlagged             Boolean             @default(false)
+  flaggedReason         String?
+  flaggedBy             String?
+
+  // Metadata
+  metadata              Json?
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  // Relations
+  sender                User                @relation("EmailPaymentSender", fields: [senderId], references: [id])
+  recipient             User?               @relation("EmailPaymentRecipient", fields: [recipientId], references: [id])
+  transaction           Transaction?
+  escrow                Escrow?
+  emailEvents           EmailPaymentEvent[]
+
+  @@index([recipientEmail])
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([emailTrackingId])
+  @@index([isFlagged])
+  @@index([createdAt])
+  @@map("email_payments")
+}
+
+model EmailPaymentEvent {
+  id              String       @id @default(uuid())
+  emailPaymentId  String
+  eventType       String
+  eventData       Json?
+  ipAddress       String?
+  userAgent       String?
+  location        String?
+  createdAt       DateTime     @default(now())
+
+  emailPayment    EmailPayment @relation(fields: [emailPaymentId], references: [id], onDelete: Cascade)
+
+  @@index([emailPaymentId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("email_payment_events")
+}
+
+model PendingEmailPayment {
+  id              String   @id @default(uuid())
+  recipientEmail  String   @unique
+  totalAmount     Decimal  @db.Decimal(19, 6)
+  paymentCount    Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([recipientEmail])
+  @@map("pending_email_payments")
+}
+
+model Escrow {
+  id              String       @id @default(uuid())
+  creatorId       String
+  recipientId     String?
+  recipientEmail  String?
+
+  amount          Decimal      @db.Decimal(19, 6)
+  currency        String       @default("USDC")
+
+  status          EscrowStatus @default(ACTIVE)
+  escrowType      EscrowType   @default(MANUAL)
+
+  // Smart contract details
+  smartAccountId  String?
+  escrowTxHash    String?
+  releaseTxHash   String?
+
+  // Conditions
+  conditions      Json?
+  releaseDate     DateTime?
+  autoRelease     Boolean      @default(false)
+
+  // Metadata
+  description     String?
+  metadata        Json?
+
+  // Dispute
+  isDisputed      Boolean      @default(false)
+  disputeReason   String?
+
+  createdAt       DateTime     @default(now())
+  releasedAt      DateTime?
+  cancelledAt     DateTime?
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  creator         User         @relation("EscrowCreator", fields: [creatorId], references: [id])
+  recipient       User?        @relation("EscrowRecipient", fields: [recipientId], references: [id])
+  emailPayment    EmailPayment?
+  transactions    Transaction[]
+
+  @@index([creatorId])
+  @@index([recipientId])
+  @@index([recipientEmail])
+  @@index([status])
+  @@index([createdAt])
+  @@map("escrows")
+}
+
+model BankAccount {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Bank Details
+  bankName        String
+  accountName     String
+  accountNumber   String   @db.Text
+  routingNumber   String?  @db.Text
+  iban            String?  @db.Text
+  swiftCode       String?
+
+  // Account Type
+  accountType     String
+  country         String
+  currency        String
+
+  // Plaid Integration
+  plaidAccountId  String?
+  plaidAccessToken String? @db.Text
+
+  // Verification
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+
+  // Primary account
+  isPrimary       Boolean  @default(false)
+
+  // Metadata
+  metadata        Json?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([plaidAccountId])
+  @@map("bank_accounts")
+}
+
+model Card {
+  id              String       @id @default(uuid())
+  userId          String
+
+  // Card Details
+  cardType        CardType
+  cardStatus      CardStatus   @default(ACTIVE)
+
+  // Circle/Stripe Card ID
+  externalCardId  String       @unique
+
+  // Card Info (encrypted)
+  last4           String
+  brand           String?
+  expiryMonth     Int?
+  expiryYear      Int?
+
+  // Limits
+  spendingLimit   Decimal?     @db.Decimal(19, 2)
+  dailyLimit      Decimal?     @db.Decimal(19, 2)
+
+  // Billing
+  billingAddress  Json?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    CardTransaction[]
+
+  @@index([userId])
+  @@index([externalCardId])
+  @@map("cards")
+}
+
+model CardTransaction {
+  id              String   @id @default(uuid())
+  cardId          String
+
+  amount          Decimal  @db.Decimal(19, 6)
+  currency        String
+
+  merchantName    String?
+  merchantCategory String?
+
+  status          String
+
+  transactionDate DateTime
+  settledDate     DateTime?
+
+  metadata        Json?
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@index([transactionDate])
+  @@map("card_transactions")
+}
+
+model Recipient {
+  id              String   @id @default(uuid())
+  userId          String
+
+  name            String
+  email           String?
+  walletAddress   String?
+
+  // Bank details (for withdrawals)
+  bankAccountNumber String? @db.Text
+  bankName        String?
+
+  // Metadata
+  nickname        String?
+  notes           String?
+
+  // Stats
+  totalSent       Decimal  @default(0) @db.Decimal(19, 6)
+  transactionCount Int     @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@map("recipients")
+}
+
+model Withdrawal {
+  id              String           @id @default(uuid())
+  userId          String
+
+  amount          Decimal          @db.Decimal(19, 6)
+  fee             Decimal          @db.Decimal(19, 6)
+  netAmount       Decimal          @db.Decimal(19, 6)
+
+  status          WithdrawalStatus @default(PENDING)
+
+  // Destination
+  destinationType String
+  destinationDetails Json
+
+  // Blockchain
+  txHash          String?
+
+  // Processing
+  processedAt     DateTime?
+  completedAt     DateTime?
+  failureReason   String?
+
+  // Admin
+  approvedBy      String?
+  approvedAt      DateTime?
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("withdrawals")
+}
+
+model Session {
+  id              String   @id @default(uuid())
+  userId          String
+
+  token           String   @unique @db.Text
+  refreshToken    String?  @unique @db.Text
+
+  ipAddress       String?
+  userAgent       String?
+  device          String?
+
+  expiresAt       DateTime
+  lastActivityAt  DateTime @default(now())
+
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  userId          String
+
+  type            String
+  title           String
+  message         String   @db.Text
+
+  isRead          Boolean  @default(false)
+  readAt          DateTime?
+
+  // Action
+  actionUrl       String?
+  actionData      Json?
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id              String   @id @default(uuid())
+  userId          String
+
+  action          String
+  entityType      String?
+  entityId        String?
+
+  details         Json?
+
+  ipAddress       String?
+  userAgent       String?
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model Dispute {
+  id              String        @id @default(uuid())
+  transactionId   String        @unique
+  userId          String
+
+  disputeType     DisputeType
+  status          DisputeStatus @default(OPEN)
+
+  description     String        @db.Text
+  evidence        Json?
+
+  // Resolution
+  resolution      String?       @db.Text
+  resolvedBy      String?
+  resolvedAt      DateTime?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  transaction     Transaction   @relation(fields: [transactionId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("disputes")
+}
+
+// ============= ADMIN MODELS =============
+
+model Admin {
+  id              String         @id @default(uuid())
+
+  email           String         @unique
+  passwordHash    String         @db.Text
+
+  fullName        String
+  role            AdminRole
+  permissions     AdminPermission[]
+
+  // Security
+  twoFactorEnabled Boolean       @default(true)
+  twoFactorSecret String?        @db.Text
+
+  // Status
+  isActive        Boolean        @default(true)
+  isSuspended     Boolean        @default(false)
+
+  // Metadata
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  auditLogs       AuditLog[]
+  userNotes       AdminUserNote[]
+
+  @@index([email])
+  @@index([role])
+  @@map("admins")
+}
+
+model AuditLog {
+  id              String       @id @default(uuid())
+  adminId         String
+
+  action          AuditAction
+  entityType      String?
+  entityId        String?
+
+  changes         Json?
+  metadata        Json?
+
+  ipAddress       String?
+  userAgent       String?
+
+  createdAt       DateTime     @default(now())
+
+  // Relations
+  admin           Admin        @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AdminUserNote {
+  id              String   @id @default(uuid())
+  userId          String
+  adminId         String
+
+  note            String   @db.Text
+  category        String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin           Admin    @relation(fields: [adminId], references: [id])
+
+  @@index([userId])
+  @@index([adminId])
+  @@map("admin_user_notes")
+}
+
+model FraudRule {
+  id              String   @id @default(uuid())
+
+  name            String
+  description     String?  @db.Text
+
+  ruleType        String
+  conditions      Json
+
+  action          String
+  severity        String
+
+  isActive        Boolean  @default(true)
+
+  // Stats
+  triggeredCount  Int      @default(0)
+  lastTriggered   DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([ruleType])
+  @@index([isActive])
+  @@map("fraud_rules")
+}
+
+model SystemSetting {
+  id              String   @id @default(uuid())
+
+  key             String   @unique
+  value           String   @db.Text
+  category        String?
+
+  description     String?
+
+  updatedBy       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+  @@map("system_settings")
+}
