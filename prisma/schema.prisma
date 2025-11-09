@@ -46,6 +46,8 @@ enum TransactionType {
   DEPOSIT
   EMAIL_PAYMENT
   EMAIL_CLAIM
+  PHONE_PAYMENT
+  PHONE_CLAIM
   REFUND
   ADJUSTMENT
 }
@@ -92,6 +94,17 @@ enum EmailPaymentStatus {
   PENDING
   DELIVERED
   OPENED
+  CLICKED
+  REGISTERED
+  CLAIMED
+  EXPIRED
+  REFUNDED
+  CANCELLED
+}
+
+enum PhonePaymentStatus {
+  PENDING
+  DELIVERED
   CLICKED
   REGISTERED
   CLAIMED
@@ -288,6 +301,8 @@ model User {
   escrowsReceived   Escrow[]     @relation("EscrowRecipient")
   emailPaymentsSent EmailPayment[] @relation("EmailPaymentSender")
   emailPaymentsReceived EmailPayment[] @relation("EmailPaymentRecipient")
+  phonePaymentsSent PhonePayment[] @relation("PhonePaymentSender")
+  phonePaymentsReceived PhonePayment[] @relation("PhonePaymentRecipient")
   bankAccounts      BankAccount[]
   cards             Card[]
   recipients        Recipient[]
@@ -455,6 +470,7 @@ model Transaction {
   senderId              String?
   recipientId           String?
   recipientEmail        String?
+  recipientPhone        String?
   recipientWalletAddress String?
 
   amount                Decimal           @db.Decimal(19, 6)
@@ -489,6 +505,10 @@ model Transaction {
   isEmailPayment        Boolean           @default(false)
   emailPaymentId        String?           @unique
 
+  // Phone payment specific
+  isPhonePayment        Boolean           @default(false)
+  phonePaymentId        String?           @unique
+
   // Escrow
   useEscrow             Boolean           @default(false)
   escrowId              String?           @unique
@@ -519,6 +539,7 @@ model Transaction {
   recipient             User?             @relation("ReceivedTransactions", fields: [recipientId], references: [id])
   escrow                Escrow?           @relation(fields: [escrowId], references: [id])
   emailPayment          EmailPayment?     @relation(fields: [emailPaymentId], references: [id])
+  phonePayment          PhonePayment?     @relation(fields: [phonePaymentId], references: [id])
   userOperation         UserOperation?    @relation(fields: [userOperationId], references: [id])
   dispute               Dispute?
 
@@ -526,10 +547,12 @@ model Transaction {
   @@index([senderId])
   @@index([recipientId])
   @@index([recipientEmail])
+  @@index([recipientPhone])
   @@index([transactionHash])
   @@index([userOpHash])
   @@index([status])
   @@index([isEmailPayment])
+  @@index([isPhonePayment])
   @@index([isFlagged])
   @@index([paymasterUsed])
   @@index([createdAt])
@@ -706,11 +729,122 @@ model PendingEmailPayment {
   @@map("pending_email_payments")
 }
 
+model PhonePayment {
+  id                    String              @id @default(uuid())
+  senderId              String
+  senderPhone           String
+  recipientPhone        String
+  recipientId           String?
+
+  amount                Decimal             @db.Decimal(19, 6)
+  currency              String              @default("USDC")
+
+  status                PhonePaymentStatus  @default(PENDING)
+
+  // Tracking
+  smsSentAt             DateTime?
+  smsClickedAt          DateTime?
+  recipientRegisteredAt DateTime?
+  claimedAt             DateTime?
+  expiredAt             DateTime?
+  refundedAt            DateTime?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancellationReason    String?
+
+  // Claim period
+  expiresAt             DateTime
+
+  // Escrow details
+  escrowSmartAccountId  String?
+  escrowTxHash          String?
+  claimTxHash           String?
+  refundTxHash          String?
+
+  // UserOp tracking
+  escrowUserOpHash      String?
+  claimUserOpHash       String?
+  refundUserOpHash      String?
+
+  // SMS tracking
+  smsTrackingId         String              @unique
+  smsProvider           String?             @default("twilio")
+  smsMessageId          String?
+
+  // Notification history
+  remindersSent         Int                 @default(0)
+  lastReminderAt        DateTime?
+
+  // Payment details
+  referenceNote         String?
+  personalMessage       String?
+
+  // Admin flags
+  isFlagged             Boolean             @default(false)
+  flaggedReason         String?
+  flaggedBy             String?
+
+  // Metadata
+  metadata              Json?
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  // Relations
+  sender                User                @relation("PhonePaymentSender", fields: [senderId], references: [id])
+  recipient             User?               @relation("PhonePaymentRecipient", fields: [recipientId], references: [id])
+  transaction           Transaction?
+  escrow                Escrow?
+  phoneEvents           PhonePaymentEvent[]
+
+  @@index([recipientPhone])
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([smsTrackingId])
+  @@index([isFlagged])
+  @@index([createdAt])
+  @@map("phone_payments")
+}
+
+model PhonePaymentEvent {
+  id              String       @id @default(uuid())
+  phonePaymentId  String
+  eventType       String
+  eventData       Json?
+  ipAddress       String?
+  userAgent       String?
+  location        String?
+  createdAt       DateTime     @default(now())
+
+  phonePayment    PhonePayment @relation(fields: [phonePaymentId], references: [id], onDelete: Cascade)
+
+  @@index([phonePaymentId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("phone_payment_events")
+}
+
+model PendingPhonePayment {
+  id              String   @id @default(uuid())
+  recipientPhone  String   @unique
+  totalAmount     Decimal  @db.Decimal(19, 6)
+  paymentCount    Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([recipientPhone])
+  @@map("pending_phone_payments")
+}
+
 model Escrow {
   id              String       @id @default(uuid())
   creatorId       String
   recipientId     String?
   recipientEmail  String?
+  recipientPhone  String?
 
   amount          Decimal      @db.Decimal(19, 6)
   currency        String       @default("USDC")
@@ -745,11 +879,13 @@ model Escrow {
   creator         User         @relation("EscrowCreator", fields: [creatorId], references: [id])
   recipient       User?        @relation("EscrowRecipient", fields: [recipientId], references: [id])
   emailPayment    EmailPayment?
+  phonePayment    PhonePayment?
   transactions    Transaction[]
 
   @@index([creatorId])
   @@index([recipientId])
   @@index([recipientEmail])
+  @@index([recipientPhone])
   @@index([status])
   @@index([createdAt])
   @@map("escrows")

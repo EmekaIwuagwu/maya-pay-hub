@@ -226,3 +226,44 @@ export function hash(data: string): string {
 export function compareHash(data: string, hashedData: string): boolean {
   return hash(data) === hashedData;
 }
+
+/**
+ * Format phone number to E.164 format
+ */
+export function formatPhoneNumber(phone: string): string {
+  // Remove all non-digit characters
+  let cleaned = phone.replace(/\D/g, '');
+
+  // Add + prefix if not present
+  if (!phone.startsWith('+')) {
+    // Assume US/Canada number if 10 digits
+    if (cleaned.length === 10) {
+      cleaned = '+1' + cleaned;
+    } else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+      cleaned = '+' + cleaned;
+    } else {
+      // Add + prefix for international numbers
+      cleaned = '+' + cleaned;
+    }
+  } else {
+    cleaned = '+' + cleaned;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Mask phone number for display
+ */
+export function maskPhoneNumber(phone: string): string {
+  // Format: +1 (234) ***-**89
+  if (phone.length < 4) {
+    return phone;
+  }
+
+  const lastDigits = phone.slice(-2);
+  const firstDigits = phone.slice(0, phone.length - 6);
+  const masked = phone.slice(phone.length - 6, phone.length - 2).replace(/\d/g, '*');
+
+  return `${firstDigits}${masked}${lastDigits}`;
+}
