@@ -10,8 +10,22 @@ const router = Router();
 router.use(authenticateUser);
 
 /**
+ * @route   POST /api/transactions/send-unified
+ * @desc    Send USDC (auto-detect wallet/email/phone)
+ * @access  Private
+ */
+router.post('/send-unified', transactionController.unifiedSend);
+
+/**
+ * @route   GET /api/transactions/preview
+ * @desc    Preview send (detect recipient type)
+ * @access  Private
+ */
+router.get('/preview', transactionController.previewSend);
+
+/**
  * @route   POST /api/transactions/send
- * @desc    Send USDC transaction
+ * @desc    Send USDC transaction (direct to wallet)
  * @access  Private
  */
 router.post('/send', transactionController.sendTransaction);
