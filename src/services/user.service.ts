@@ -53,6 +53,21 @@ class UserService {
   }
 
   /**
+   * Get user by phone number
+   */
+  async getUserByPhone(phoneNumber: string) {
+    return await prisma.user.findFirst({
+      where: { phoneNumber },
+      include: {
+        smartAccounts: {
+          where: { isPrimary: true },
+          take: 1,
+        },
+      },
+    });
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(userId: string, data: {

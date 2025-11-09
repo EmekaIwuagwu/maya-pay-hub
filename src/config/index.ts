@@ -131,6 +131,13 @@ export const config = {
     apiKey: process.env.SENDGRID_API_KEY,
   },
 
+  // SMS (Twilio)
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+  },
+
   // Payment Integrations
   plaid: {
     clientId: process.env.PLAID_CLIENT_ID,
