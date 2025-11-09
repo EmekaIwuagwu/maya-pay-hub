@@ -2,11 +2,71 @@
 
 import { Request, Response, NextFunction } from 'express';
 import transactionService from '../services/transaction.service';
+import unifiedSendService from '../services/unifiedSend.service';
 import { logger } from '../utils/logger';
 
 class TransactionController {
   /**
-   * Send USDC transaction
+   * Unified send (auto-detect wallet/email/phone)
+   */
+  async unifiedSend(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user.id;
+      const {
+        recipient,
+        amount,
+        personalMessage,
+        referenceNote,
+        expirationDays,
+      } = req.body;
+
+      const result = await unifiedSendService.send({
+        userId,
+        recipient,
+        amount,
+        personalMessage,
+        referenceNote,
+        expirationDays,
+      });
+
+      res.json({
+        success: true,
+        message: result.message,
+        data: result.data,
+        recipientType: result.type,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Preview send (detect recipient type)
+   */
+  async previewSend(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { recipient } = req.query;
+
+      if (!recipient) {
+        return res.status(400).json({
+          success: false,
+          error: 'Recipient is required',
+        });
+      }
+
+      const preview = await unifiedSendService.previewSend(recipient as string);
+
+      res.json({
+        success: true,
+        data: preview,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Send USDC transaction (direct to wallet address)
    */
   async sendTransaction(req: Request, res: Response, next: NextFunction) {
     try {
