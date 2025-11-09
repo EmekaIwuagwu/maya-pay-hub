@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Maya Pay</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+    .content { background: #f9fafb; padding: 30px; }
+    .button { display: inline-block; padding: 12px 24px; background: #4F46E5; color: white; text-decoration: none; border-radius: 6px; }
+    .wallet-address { background: #e5e7eb; padding: 10px; border-radius: 4px; font-family: monospace; word-break: break-all; }
+    .footer { text-align: center; color: #6b7280; padding: 20px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Welcome to Maya Pay!</h1>
+    </div>
+    <div class="content">
+      <h2>Hi {{name}}!</h2>
+      <p>Welcome to Maya Pay - your gateway to seamless cross-border USDC payments.</p>
+      <p>Your smart wallet has been created and is ready to use:</p>
+      <div class="wallet-address">{{smartAccountAddress}}</div>
+      <p>With Maya, you can:</p>
+      <ul>
+        <li>Send USDC to anyone using just their email address</li>
+        <li>Pay gas fees in USDC (no need for ETH!)</li>
+        <li>Enjoy fast, low-cost transactions on Base</li>
+        <li>Experience Web3 without the complexity</li>
+      </ul>
+      <p style="text-align: center; margin-top: 30px;">
+        <a href="{{dashboardUrl}}" class="button">Go to Dashboard</a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>Need help? Contact us at support@maya-pay.com</p>
+      <p>&copy; 2025 Maya Pay. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
