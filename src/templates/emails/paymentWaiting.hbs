@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You received a payment!</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #10b981; color: white; padding: 20px; text-align: center; }
+    .content { background: #f9fafb; padding: 30px; }
+    .amount { font-size: 32px; font-weight: bold; color: #10b981; text-align: center; margin: 20px 0; }
+    .button { display: inline-block; padding: 12px 24px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; }
+    .message-box { background: white; padding: 15px; border-left: 4px solid #10b981; margin: 20px 0; }
+    .footer { text-align: center; color: #6b7280; padding: 20px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💰 You Received a Payment!</h1>
+    </div>
+    <div class="content">
+      <p><strong>{{senderName}}</strong> sent you a payment:</p>
+      <div class="amount">{{amount}} USDC</div>
+      {{#if personalMessage}}
+      <div class="message-box">
+        <strong>Message:</strong>
+        <p>{{personalMessage}}</p>
+      </div>
+      {{/if}}
+      <p>To claim your payment:</p>
+      <ol>
+        <li>Click the button below to sign up or log in to Maya Pay</li>
+        <li>Your payment will be automatically credited to your wallet</li>
+        <li>Start using your USDC immediately!</li>
+      </ol>
+      <p style="text-align: center; margin-top: 30px;">
+        <a href="{{claimUrl}}" class="button">Claim Your Payment</a>
+      </p>
+      <p style="text-align: center; color: #ef4444; margin-top: 20px;">
+        <small>⏰ This payment expires on {{expiresAt}}</small>
+      </p>
+    </div>
+    <div class="footer">
+      <p>Maya Pay - Seamless cross-border payments</p>
+      <p>&copy; 2025 Maya Pay. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>

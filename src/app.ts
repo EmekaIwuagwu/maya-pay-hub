@@ -9,6 +9,7 @@ import { logger } from './utils/logger';
 
 // Import routes
 import routes from './routes';
+import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 
 const app: Application = express();
 
@@ -50,26 +51,9 @@ app.get('/health', (req, res) => {
 app.use('/api', routes);
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-    path: req.path,
-  });
-});
+app.use(notFoundHandler);
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Express error:', err);
-
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal server error';
-
-  res.status(statusCode).json({
-    success: false,
-    error: message,
-    ...(config.env === 'development' && { stack: err.stack }),
-  });
-});
+app.use(errorHandler);
 
 export default app;
