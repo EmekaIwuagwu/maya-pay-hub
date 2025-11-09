@@ -6,6 +6,7 @@ import userRoutes from './user.routes';
 import walletRoutes from './wallet.routes';
 import transactionRoutes from './transaction.routes';
 import emailPaymentRoutes from './emailPayment.routes';
+import adminRoutes from './admin.routes';
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use('/users', userRoutes);
 router.use('/wallets', walletRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/payments', emailPaymentRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

@@ -3,46 +3,70 @@
 import { ethers } from 'ethers';
 import { config } from './index';
 import { logger } from '../utils/logger';
+import { getNetworkConfig, NetworkType, getCurrentNetwork } from './networks';
 
-// Create provider for Base network
-export const baseProvider = new ethers.JsonRpcProvider(config.blockchain.baseRpcUrl);
-
-// Backup provider
-export const baseProviderBackup = new ethers.JsonRpcProvider(config.blockchain.baseRpcUrlBackup);
-
-// Fallback provider that switches to backup on failure
-export const fallbackProvider = new ethers.FallbackProvider([
-  { provider: baseProvider, priority: 1, stallTimeout: 2000, weight: 2 },
-  { provider: baseProviderBackup, priority: 2, stallTimeout: 2000, weight: 1 },
-]);
-
-// Bundler provider for Account Abstraction
-export const bundlerProvider = new ethers.JsonRpcProvider(config.bundler.rpcUrl);
-
-// Test network provider (Base Sepolia) for development
-export const sepoliaProvider = config.blockchain.sepoliaRpcUrl
-  ? new ethers.JsonRpcProvider(config.blockchain.sepoliaRpcUrl)
-  : null;
+// Provider cache
+const providerCache = new Map<string, ethers.JsonRpcProvider>();
 
 /**
- * Get the appropriate provider based on environment
+ * Get provider for specific network
  */
-export function getProvider(): ethers.JsonRpcProvider {
-  if (config.env === 'development' && sepoliaProvider) {
-    return sepoliaProvider;
+export function getProvider(network?: NetworkType): ethers.JsonRpcProvider {
+  const selectedNetwork = network || getCurrentNetwork();
+  const cacheKey = selectedNetwork;
+
+  if (providerCache.has(cacheKey)) {
+    return providerCache.get(cacheKey)!;
   }
-  return baseProvider;
+
+  const networkConfig = getNetworkConfig(selectedNetwork);
+  const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
+  providerCache.set(cacheKey, provider);
+
+  return provider;
 }
+
+/**
+ * Get bundler provider for specific network
+ */
+export function getBundlerProvider(network?: NetworkType): ethers.JsonRpcProvider {
+  const selectedNetwork = network || getCurrentNetwork();
+  const networkConfig = getNetworkConfig(selectedNetwork);
+  const cacheKey = `bundler-${selectedNetwork}`;
+
+  if (providerCache.has(cacheKey)) {
+    return providerCache.get(cacheKey)!;
+  }
+
+  const provider = new ethers.JsonRpcProvider(networkConfig.bundlerUrl);
+  providerCache.set(cacheKey, provider);
+
+  return provider;
+}
+
+// Legacy exports for backward compatibility
+export const baseProvider = getProvider('mainnet');
+export const baseProviderBackup = new ethers.JsonRpcProvider('https://mainnet.base.org');
+export const sepoliaProvider = getProvider('testnet');
+export const bundlerProvider = getBundlerProvider();
+
+// Fallback provider
+export const fallbackProvider = new ethers.FallbackProvider([
+  { provider: baseProvider, priority: 1, stallTimeout: 2000, weight: 2 },
+  { provider: baseProviderBackup, priority: 2, stallTimeout: 3000, weight: 1 },
+]);
 
 /**
  * Verify blockchain connection
  */
-export async function verifyBlockchainConnection(): Promise<boolean> {
+export async function verifyBlockchainConnection(network?: NetworkType): Promise<boolean> {
   try {
-    const network = await baseProvider.getNetwork();
-    const blockNumber = await baseProvider.getBlockNumber();
+    const provider = getProvider(network);
+    const networkInfo = await provider.getNetwork();
+    const blockNumber = await provider.getBlockNumber();
+    const networkConfig = getNetworkConfig(network);
 
-    logger.info(`✅ Connected to ${network.name} (Chain ID: ${network.chainId})`);
+    logger.info(`✅ Connected to ${networkConfig.name} (Chain ID: ${networkInfo.chainId})`);
     logger.info(`Current block number: ${blockNumber}`);
 
     return true;
@@ -55,11 +79,11 @@ export async function verifyBlockchainConnection(): Promise<boolean> {
 /**
  * Get current gas prices
  */
-export async function getGasPrices(): Promise<{
+export async function getGasPrices(network?: NetworkType): Promise<{
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
 }> {
-  const feeData = await getProvider().getFeeData();
+  const feeData = await getProvider(network).getFeeData();
 
   if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
     throw new Error('Failed to fetch gas prices');
